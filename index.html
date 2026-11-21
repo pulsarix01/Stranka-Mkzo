@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Secure VoIP: Asterisk, Kamailio &amp; ZRTP</title>
+<style>
+:root {
+    --paper: #f6f4ef;
+    --card: #ffffff;
+    --ink: #1c1f24;
+    --muted: #5b6470;
+    --line: #e4dfd5;
+    --accent: #d9480f;
+    --accent-soft: #fff1e8;
+    --teal: #0b7285;
+    --teal-soft: #e6f4f6;
+    --term: #17191e;
+    --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --mono: 'Cascadia Code', Consolas, 'Courier New', monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.7;
+}
+
+/* ===== Hlavička ===== */
+.hero {
+    border-bottom: 1px solid var(--line);
+    background:
+        linear-gradient(90deg, var(--accent) 0 6px, transparent 6px),
+        var(--card);
+}
+
+.hero-inner {
+    max-width: 1640px;
+    margin: 0 auto;
+    padding: 34px 32px 28px;
+}
+
+.kicker {
+    font-size: 0.8em;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 8px;
+}
+
+.hero h1 {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: clamp(1.5em, 2.6vw, 2.05em);
+    line-height: 1.2;
+    margin: 0 0 10px;
+    max-width: 900px;
+}
+
+.hero h1 em {
+    font-style: italic;
+    color: var(--teal);
+}
+
+.hero .lead {
+    color: var(--muted);
+    font-size: 0.98em;
+    max-width: 760px;
+    margin: 0 0 16px;
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.chips li {
+    font-size: 0.82em;
+    font-weight: 600;
+    padding: 4px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+}
+
+/* ===== Rozloženie ===== */
+.layout {
+    max-width: 1640px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+    display: grid;
+    grid-template-columns: 230px minmax(0, 1fr);
+    gap: 48px;
+}
+
+.toc {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    font-size: 0.92em;
+    margin-left: clamp(-28px, calc(1640px - 100vw), 0px);
+}
+
+.toc p {
+    font-size: 0.78em;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+}
+
+.toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-left: 2px solid var(--line);
+}
+
+.toc a {
+    display: block;
+    padding: 6px 0 6px 16px;
+    margin-left: -2px;
+    border-left: 2px solid transparent;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.toc a:hover { color: var(--ink); }
+
+.toc a.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    font-weight: 600;
+}
+
+.toc ol ol {
+    border-left: none;
+    font-size: 0.92em;
+}
+
+.toc ol ol a { padding-left: 30px; padding-top: 3px; padding-bottom: 3px; }
+
+/* ===== Obsah ===== */
+main {
+    width: 100%;
+    max-width: 1060px;
+    margin: 0;
+}
+
+main section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 40px 44px;
+    margin-bottom: 28px;
+    scroll-margin-top: 20px;
+}
+
+h2 {
+    font-family: var(--serif);
+    font-size: 1.85em;
+    margin: 0 0 20px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+}
+
+h2 .num {
+    font-family: var(--mono);
+    font-size: 0.55em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 2px 8px;
+    border-radius: 6px;
+}
+
+h3 {
+    font-size: 1.2em;
+    margin: 40px 0 12px;
+    padding-top: 28px;
+    border-top: 1px dashed var(--line);
+    scroll-margin-top: 20px;
+}
+
+h3:first-of-type { border-top: none; padding-top: 0; margin-top: 28px; }
+
+p { margin: 0 0 16px; }
+
+code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+a { color: var(--teal); }
+
+/* ===== Kroky ===== */
+.steps {
+    list-style: none;
+    counter-reset: step;
+    margin: 20px 0;
+    padding: 0;
+}
+
+.steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: 0 0 22px 52px;
+    border-left: 2px solid var(--line);
+    margin-left: 16px;
+}
+
+.steps > li:last-child { border-left-color: transparent; padding-bottom: 4px; }
+
+.steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: -17px;
+    top: -2px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.9em;
+    display: grid;
+    place-items: center;
+}
+
+.steps > li > strong {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.steps > li > p { margin-bottom: 8px; }
+
+/* ===== Terminál ===== */
+.term {
+    background: var(--term);
+    border-radius: 10px;
+    margin: 10px 0 14px;
+    overflow: hidden;
+    box-shadow: 0 6px 18px rgba(28, 31, 36, 0.12);
+}
+
+.term-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #23262d;
+    font-size: 0.78em;
+    color: #9aa3ad;
+}
+
+.term-bar .dots {
+    display: flex;
+    gap: 6px;
+    margin-right: 6px;
+}
+
+.term-bar .dots i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #3a3f48;
+}
+
+.term-bar .dots i:first-child { background: #ef6b5b; }
+.term-bar .dots i:nth-child(2) { background: #f5bd4f; }
+.term-bar .dots i:nth-child(3) { background: #5fc35f; }
+
+.term-bar .title { font-family: var(--mono); }
+
+.copy {
+    margin-left: auto;
+    font: inherit;
+    color: #c9d1d9;
+    background: transparent;
+    border: 1px solid #3a3f48;
+    border-radius: 5px;
+    padding: 2px 10px;
+    cursor: pointer;
+}
+
+.copy:hover { border-color: #c9d1d9; }
+
+.term pre {
+    margin: 0;
+    padding: 14px 18px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.86em;
+    line-height: 1.6;
+    color: #e6edf3;
+}
+
+.term code {
+    background: none;
+    border: 0;
+    padding: 0;
+    font-size: inherit;
+    color: inherit;
+}
+
+.term .c { color: #7d8590; }
+.term .k { color: #ffa657; }
+.term .s { color: #7ee787; }
+
+/* ===== Poznámky ===== */
+.note, .warn {
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 18px 0;
+    font-size: 0.95em;
+}
+
+.note { background: var(--teal-soft); border-left: 4px solid var(--teal); }
+.warn { background: var(--accent-soft); border-left: 4px solid var(--accent); }
+
+.note > b, .warn > b { display: block; margin-bottom: 2px; }
+
+/* ===== Obrázky ===== */
+figure {
+    margin: 22px 0;
+}
+
+figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    cursor: zoom-in;
+    transition: box-shadow 0.2s;
+}
+
+figure img:hover { box-shadow: 0 8px 24px rgba(28, 31, 36, 0.15); }
+
+figcaption {
+    font-size: 0.86em;
+    color: var(--muted);
+    margin-top: 8px;
+}
+
+figcaption b { color: var(--ink); }
+
+.gallery {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
+}
+
+.gallery figure { margin: 0; }
+
+.gallery-wrap { margin: 22px 0; }
+
+/* ===== Tabuľka ===== */
+.table-wrap { overflow-x: auto; margin: 20px 0; }
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.93em;
+}
+
+th, td {
+    text-align: left;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+}
+
+th {
+    font-size: 0.8em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 2px solid var(--ink);
+}
+
+tr.hl td { background: var(--teal-soft); }
+
+/* ===== Názor ===== */
+.opinion {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    margin: 20px 0;
+}
+
+.opinion div {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+}
+
+.opinion h4 { margin: 0 0 8px; font-size: 1em; }
+.opinion .plus h4 { color: var(--teal); }
+.opinion .minus h4 { color: var(--accent); }
+.opinion ul { margin: 0; padding-left: 18px; }
+.opinion li { margin-bottom: 6px; }
+
+/* ===== Autori ===== */
+.authors {
+    margin: 14px 0 0;
+    font-size: 0.9em;
+    color: var(--muted);
+}
+
+.authors b { color: var(--ink); }
+
+/* ===== Výsledky ===== */
+.results {
+    list-style: none;
+    margin: 0 0 18px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.results li {
+    position: relative;
+    padding: 10px 16px 10px 50px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95em;
+}
+
+.results li:last-child { border-bottom: none; }
+
+.results li::before {
+    content: '✓';
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--teal-soft);
+    color: var(--teal);
+    font-weight: 700;
+    font-size: 0.8em;
+    display: grid;
+    place-items: center;
+    position: absolute;
+    left: 16px;
+    top: 12px;
+}
+
+/* ===== Zdroje ===== */
+.refs {
+    font-size: 0.9em;
+    color: var(--muted);
+    padding-left: 22px;
+    margin: 0;
+}
+
+.refs li { margin-bottom: 8px; }
+
+footer {
+    text-align: center;
+    font-size: 0.82em;
+    color: var(--muted);
+    padding: 0 20px 40px;
+}
+
+/* ===== Lightbox ===== */
+.lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 19, 23, 0.88);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    z-index: 50;
+    cursor: zoom-out;
+}
+
+.lightbox.open { display: flex; }
+
+.lightbox img {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 8px;
+    background: #fff;
+}
+
+/* ===== Mobil ===== */
+@media (max-width: 960px) {
+    .layout { grid-template-columns: 1fr; padding: 24px 16px 60px; }
+    .toc { display: none; }
+    main section { padding: 28px 22px; }
+    .hero-inner { padding: 26px 18px 22px; }
+}
+
+@media (max-width: 640px) {
+    .gallery, .opinion { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+    <div class="hero-inner">
+        <p class="kicker">MKZO · Projekt · Praktická ukážka</p>
+        <h1>Secure VoIP: Asterisk, Kamailio a šifrovanie hovorov pomocou <em>ZRTP</em></h1>
+        <p class="lead">Nasadenie ústredne Asterisk a SIP proxy Kamailio na Linux serveri a overenie koncového šifrovania hovoru medzi softvérovými telefónmi PhonerLite a Linphone.</p>
+        <ul class="chips">
+            <li>Asterisk 20.21</li>
+            <li>Kamailio 5.6</li>
+            <li>PJSIP</li>
+            <li>MariaDB</li>
+            <li>ZRTP / SRTP</li>
+            <li>PhonerLite · Linphone</li>
+        </ul>
+        <p class="authors">Autori: <b>[Meno Priezvisko 1]</b> ([login]) · <b>[Meno Priezvisko 2]</b> ([login])</p>
+    </div>
+</header>
+
+<div class="layout">
+
+    <nav class="toc" aria-label="Obsah">
+        <p>Obsah</p>
+        <ol>
+            <li><a href="#uvod">Úvod</a></li>
+            <li><a href="#stav">Súčasný stav</a></li>
+            <li><a href="#prakticka">Praktická ukážka</a>
+                <ol>
+                    <li><a href="#topologia">Topológia</a></li>
+                    <li><a href="#asterisk">Inštalácia Asterisk</a></li>
+                    <li><a href="#pjsip">Účty PJSIP</a></li>
+                    <li><a href="#dialplan">Dialplan</a></li>
+                    <li><a href="#zrtp">ZRTP hovor</a></li>
+                    <li><a href="#kamailio">Kamailio</a></li>
+                    <li><a href="#databaza">Databáza a účty</a></li>
+                    <li><a href="#hovor-kamailio">Hovor cez Kamailio</a></li>
+                </ol>
+            </li>
+            <li><a href="#nazor">Vlastný názor</a></li>
+            <li><a href="#zaver">Záver a výsledky</a></li>
+            <li><a href="#zdroje">Zdroje</a></li>
+        </ol>
+    </nav>
+
+    <main>
+
+        <!-- ===== 01 Úvod ===== -->
+        <section id="uvod">
+            <h2><span class="num">01</span>Úvod</h2>
+            <p>Hlasová komunikácia cez IP siete (VoIP) dnes vo firmách, na úradoch aj u telekomunikačných operátorov takmer úplne nahradila klasickú analógovú a ISDN telefóniu. Hovory sa prenášajú tou istou dátovou sieťou ako e-maily či web, čo výrazne znižuje náklady a umožňuje funkcie ako presmerovanie, konferencie, hlasové schránky alebo prácu z domu. Na rozdiel od klasickej telefónie, kde bol hovor fyzicky oddelený v samostatnom okruhu, však VoIP zdedilo aj všetky hrozby, ktoré poznáme z počítačových sietí.</p>
+            <p>Nadviazanie, priebeh a ukončenie hovoru riadi signalizačný protokol <strong>SIP</strong> (Session Initiation Protocol) a samotný hlas sa prenáša v paketoch protokolu <strong>RTP</strong> (Real-time Transport Protocol). Oba protokoly sú v základnej podobe nešifrované. Útočník s prístupom k sieti, napríklad na zdieľanej Wi-Fi alebo v kompromitovanom prepínači, preto môže hovor zachytiť a spätne prehrať (nástrojmi ako Wireshark alebo sngrep). Zo signalizácie zároveň vidí, kto komu a kedy volá. Medzi ďalšie typické hrozby patrí odcudzenie prihlasovacích údajov a zneužitie účtu na drahé hovory (toll fraud), podvrhnutie registrácie alebo útoky na dostupnosť ústredne.</p>
+            <p>Cieľom projektu je prakticky nasadiť dve najrozšírenejšie open-source VoIP platformy, ústredňu <strong>Asterisk</strong> a SIP proxy <strong>Kamailio</strong>, a na oboch overiť koncové (end-to-end) šifrovanie hovoru pomocou protokolu <strong>ZRTP</strong> medzi softvérovými telefónmi PhonerLite a Linphone. Dokumentácia najprv stručne opisuje súčasné spôsoby zabezpečenia VoIP. Potom krok za krokom ukazuje inštaláciu a konfiguráciu oboch serverov vrátane všetkých príkazov a konfiguračných súborov, priebeh šifrovaného hovoru a nakoniec zhŕňa dosiahnuté výsledky a obmedzenia riešenia.</p>
+        </section>
+
+        <!-- ===== 02 Súčasný stav ===== -->
+        <section id="stav">
+            <h2><span class="num">02</span>Súčasný stav</h2>
+            <p>Zabezpečenie VoIP sa rieši na dvoch úrovniach. Signalizáciu SIP chráni transport <strong>TLS</strong> (SIPS, port 5061) a hlas chráni <strong>SRTP</strong> (RFC 3711), ktoré šifruje RTP pakety pomocou AES. Kľúčovou otázkou je, ako sa obe strany dohodnú na kľúči pre SRTP:</p>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Metóda</th><th>Ako sa vymení kľúč</th><th>Hlavná nevýhoda</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>SDES</strong></td>
+                            <td>Kľúč je priamo v SDP vnútri SIP správy.</td>
+                            <td>Bezpečné iba s TLS; každý SIP server na ceste kľúč vidí.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>DTLS-SRTP</strong> (RFC 5764)</td>
+                            <td>DTLS handshake v mediálnom kanáli, certifikáty.</td>
+                            <td>Treba overiť odtlačok certifikátu; štandard vo WebRTC.</td>
+                        </tr>
+                        <tr class="hl">
+                            <td><strong>ZRTP</strong> (RFC 6189)</td>
+                            <td>Diffie-Hellman priamo medzi telefónmi v mediálnom kanáli, bez PKI.</td>
+                            <td>Používatelia musia porovnať krátky overovací kód (SAS).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p><strong>ZRTP</strong>, ktorého autorom je Phil Zimmermann (autor PGP), nepotrebuje certifikáty ani dôveru v servery. Kľúč si telefóny dohodnú výmenou Diffie-Hellman priamo v RTP toku, takže ústredňa ani proxy ho nikdy nepoznajú. Proti útoku typu Man-in-the-Middle chráni <strong>SAS</strong> (Short Authentication String): obaja účastníci si nahlas prečítajú krátky kód a ak sa zhoduje, nikto nie je uprostred. Po prvom overení si telefóny uložia zdieľané tajomstvo (key continuity) a pri ďalších hovoroch už zariadenie považujú za dôveryhodné. Linphone navyše ponúka <em>Post-quantum ZRTP</em>, ktoré kombinuje klasickú výmenu kľúčov s postkvantovým algoritmom.</p>
+
+            <p>Pre ZRTP je dôležitý rozdiel medzi oboma servermi. <strong>Asterisk</strong> je ústredňa (PBX, B2BUA): hovor ukončuje a môže spracúvať aj médiá (nahrávanie, hlasová schránka, prekódovanie). <strong>Kamailio</strong> je čistá SIP proxy a registrar: rieši iba signalizáciu, zvládne tisíce hovorov za sekundu a hlas tečie priamo medzi koncovými zariadeniami.</p>
+        </section>
+
+        <!-- ===== 03 Praktická ukážka ===== -->
+        <section id="prakticka">
+            <h2><span class="num">03</span>Praktická ukážka</h2>
+            <p>Ukážka prebiehala na školskom Linux serveri (prístup cez PuTTY) s dvoma softvérovými telefónmi na Windows: <strong>PhonerLite</strong> (linka 2000) a <strong>Linphone</strong> (linka 2001). Postup vychádza zo zadania cvičenia [1].</p>
+
+            <h3 id="topologia">3.1 Topológia</h3>
+            <figure>
+                <img src="img/00-topologia.png" alt="Topológia laboratória: Asterisk a Kamailio">
+                <figcaption><b>Obr. 1</b> Zapojenie v oboch fázach. Signalizácia ide cez server, šifrovaný hlas priamo medzi telefónmi.</figcaption>
+            </figure>
+
+            <h3 id="asterisk">3.2 Inštalácia Asterisk 20</h3>
+            <ol class="steps">
+                <li>
+                    <strong>Aktualizácia systému a nástroje na kompiláciu</strong>
+                    <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">bash</span><button class="copy">Kopírovať</button></div><pre><code>apt update
+apt install -y git wget curl cmake libldns-dev build-essential autoconf automake libtool pkg-config</code></pre></div>
+                </li>
+                <li>
+                    <strong>Stiahnutie a rozbalenie zdrojových kódov</strong>
+                    <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">bash</span><button class="copy">Kopírovať</button></div><pre><code>cd /usr/src
+wget https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-20-current.tar.gz
+tar -xzf asterisk-20-current.tar.gz
+ls -d asterisk-20.*/</code></pre></div>
+                    <figure>
+                        <img src="img/01-stiahnutie-asterisk.png" alt="Stiahnutie a rozbalenie Asterisk">
+                        <figcaption><b>Obr. 2</b> Stiahnutý a rozbalený archív, priečinok <code>asterisk-20.21.0</code>.</figcaption>
+                    </figure>
+                </li>
+                <li>
+                    <strong>Závislosti a konfigurácia</strong>
+                    <p>Skript <code>install_prereq</code> doinštaluje potrebné balíčky podľa oficiálneho postupu. Prepínač <code>--with-pjproject-bundled</code> použije knižnicu PJSIP vo verzii otestovanej s Asteriskom.</p>
+                    <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">bash</span><button class="copy">Kopírovať</button></div><pre><code>cd asterisk-20.21.0
+./contrib/scripts/install_prereq install
+./configure --with-pjproject-bundled</code></pre></div>
+                </li>
+                <li>
+                    <strong>Kompilácia, inštalácia a overenie verzie</strong>
+                    <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">bash</span><button class="copy">Kopírovať</button></div><pre><code>make -j4
+make install
+make samples      <span class="c"># vzorové konfiguračné súbory</span>
+make config       <span class="c"># systémová služba</span>
+/sbin/ldconfig
+asterisk -V       <span class="c"># výstup: Asterisk 20.21.0</span></code></pre></div>
+                </li>
+            </ol>
+
+            <h3 id="pjsip">3.3 Účty PJSIP</h3>
+            <p>Po zálohovaní pôvodnej konfigurácie sa vygenerujú dve silné heslá (pre linky 2000 a 2001) a súbor <code>pjsip.conf</code> sa nahradí vlastnou konfiguráciou.</p>
+            <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">bash</span><button class="copy">Kopírovať</button></div><pre><code>cp /etc/asterisk/pjsip.conf /etc/asterisk/pjsip.conf.bak
+openssl rand -hex 16    <span class="c"># heslo pre 2000</span>
+openssl rand -hex 16    <span class="c"># heslo pre 2001</span>
+nano /etc/asterisk/pjsip.conf</code></pre></div>
+
+            <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">/etc/asterisk/pjsip.conf</span><button class="copy">Kopírovať</button></div><pre><code><span class="k">[transport-udp]</span>
+type=transport
+protocol=udp
+bind=0.0.0.0:5060
+
+<span class="c">; PHONERLITE - 2000</span>
+<span class="k">[2000]</span>
+type=endpoint
+context=internal
+disallow=all
+allow=ulaw,alaw
+auth=auth2000
+aors=2000
+transport=transport-udp
+direct_media=no
+rtp_symmetric=yes
+force_rport=yes
+rewrite_contact=yes
+
+<span class="k">[auth2000]</span>
+type=auth
+auth_type=userpass
+username=2000
+password=<span class="s">HESLO_2000</span>
+
+<span class="k">[2000]</span>
+type=aor
+max_contacts=1
+remove_existing=yes
+
+<span class="c">; LINPHONE - 2001</span>
+<span class="k">[2001]</span>
+type=endpoint
+context=internal
+disallow=all
+allow=ulaw,alaw
+auth=auth2001
+aors=2001
+transport=transport-udp
+direct_media=no
+rtp_symmetric=yes
+force_rport=yes
+rewrite_contact=yes
+
+<span class="k">[auth2001]</span>
+type=auth
+auth_type=userpass
+username=2001
+password=<span class="s">HESLO_2001</span>
+
+<span class="k">[2001]</span>
+type=aor
+max_contacts=1
+remove_existing=yes</code></pre></div>
+
+            <div class="note">
+                <b>Čo znamenajú dôležité parametre</b>
+                Každá linka má tri sekcie: <code>endpoint</code> (správanie linky), <code>auth</code> (prihlasovacie údaje) a <code>aor</code> (kam sa linka zaregistruje). Parametre <code>rtp_symmetric</code>, <code>force_rport</code> a <code>rewrite_contact</code> riešia prechod cez NAT. Hodnoty <code>HESLO_2000</code> a <code>HESLO_2001</code> nahraďte heslami z <code>openssl</code>.
+            </div>
+
+            <h3 id="dialplan">3.4 Dialplan a spustenie</h3>
+            <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">bash</span><button class="copy">Kopírovať</button></div><pre><code>cp /etc/asterisk/extensions.conf /etc/asterisk/extensions.conf.bak
+nano /etc/asterisk/extensions.conf</code></pre></div>
+
+            <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">/etc/asterisk/extensions.conf</span><button class="copy">Kopírovať</button></div><pre><code><span class="k">[general]</span>
+static=yes
+writeprotect=no
+
+<span class="k">[internal]</span>
+exten => 2000,1,Dial(PJSIP/2000,30)
+ same => n,Hangup()
+
+exten => 2001,1,Dial(PJSIP/2001,30)
+ same => n,Hangup()</code></pre></div>
+
+            <p>Po spustení služby sa prepne <code>direct_media</code> na <code>yes</code> a konfigurácia sa znova načíta:</p>
+            <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">bash</span><button class="copy">Kopírovať</button></div><pre><code>systemctl start asterisk
+systemctl status asterisk --no-pager
+
+sed -i 's/^direct_media=no/direct_media=yes/' /etc/asterisk/pjsip.conf
+/usr/sbin/asterisk -rx "pjsip reload"</code></pre></div>
+
+            <div class="warn">
+                <b>Prečo direct_media=yes?</b>
+                Asterisk ZRTP nepodporuje. Ak by hlas tiekol cez ústredňu, mohla by výmenu kľúčov ZRTP narušiť. Pri <code>direct_media=yes</code> Asterisk po nadviazaní hovoru presmeruje RTP priamo medzi telefóny a ZRTP prebehne medzi nimi.
+            </div>
+
+            <h3 id="zrtp">3.5 Nastavenie klientov a ZRTP hovor</h3>
+            <p>V PhonerLite sa nastaví lokálny port <strong>5062</strong> (UDP), aby nekolidoval s ďalšími SIP aplikáciami, a v záložke Kodek sa zapne <strong>ZRTP</strong>. V Linphone sa v pokročilých nastaveniach zvolí šifrovanie médií <strong>Post quantum ZRTP</strong>.</p>
+            <div class="gallery-wrap">
+                <div class="gallery">
+                    <figure>
+                        <img src="img/02-phonerlite-port-5062.png" alt="PhonerLite – lokálny port 5062">
+                        <figcaption><b>Obr. 3</b> PhonerLite: lokálny port 5062, UDP.</figcaption>
+                    </figure>
+                    <figure>
+                        <img src="img/03-phonerlite-zrtp.png" alt="PhonerLite – zapnuté ZRTP">
+                        <figcaption><b>Obr. 4</b> PhonerLite: zapnuté ZRTP, prebiehajúci hovor s Linphone 2001.</figcaption>
+                    </figure>
+                </div>
+            </div>
+            <figure>
+                <img src="img/04-linphone-sifrovanie.png" alt="Linphone – Post quantum ZRTP">
+                <figcaption><b>Obr. 5</b> Linphone: šifrovanie médií Post quantum ZRTP.</figcaption>
+            </figure>
+
+            <p>Pri prvom hovore Linphone zobrazí <strong>Security check</strong>. Používateľ porovná overovací kód (SAS), ktorý PhonerLite zobrazuje pri ikone zámku, a vyberie zhodný kód. Po overení sa hovor označí ako <strong>Device trusted</strong> a <em>End-to-end encrypted call</em>.</p>
+            <div class="gallery-wrap">
+                <div class="gallery">
+                    <figure>
+                        <img src="img/05-zrtp-overenie-sas.png" alt="Overenie SAS kódu">
+                        <figcaption><b>Obr. 6</b> Overenie SAS kódu: kód v Linphone sa porovná s kódom pri zámku v PhonerLite.</figcaption>
+                    </figure>
+                    <figure>
+                        <img src="img/06-zrtp-device-trusted.png" alt="Device trusted">
+                        <figcaption><b>Obr. 7</b> Po overení: <em>Device trusted</em>, hovor je šifrovaný end-to-end.</figcaption>
+                    </figure>
+                </div>
+            </div>
+
+            <h3 id="kamailio">3.6 Inštalácia a konfigurácia Kamailio</h3>
+            <ol class="steps">
+                <li>
+                    <strong>Inštalácia balíkov a zastavenie služby pred konfiguráciou</strong>
+                    <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">bash</span><button class="copy">Kopírovať</button></div><pre><code>apt update
+apt install -y kamailio kamailio-mysql-modules mariadb-server sngrep
+systemctl stop kamailio
+nano /etc/kamailio/kamailio.cfg</code></pre></div>
+                </li>
+                <li>
+                    <strong>Zapnutie databázy, autentifikácie a ukladania registrácií</strong>
+                    <p>Na začiatok súboru <code>kamailio.cfg</code> sa pridajú direktívy:</p>
+                    <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">/etc/kamailio/kamailio.cfg</span><button class="copy">Kopírovať</button></div><pre><code>#!define WITH_MYSQL
+#!define WITH_AUTH
+#!define WITH_USRLOCDB</code></pre></div>
+                </li>
+                <li>
+                    <strong>Globálne parametre</strong>
+                    <p>V časti <em>Global Parameters</em> sa nastaví počúvanie na porte <strong>5070</strong>, pretože port 5060 už na serveri používa Asterisk. TCP sa vypne.</p>
+                    <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">/etc/kamailio/kamailio.cfg</span><button class="copy">Kopírovať</button></div><pre><code>listen=udp:158.196.244.169:5070
+alias=158.196.244.169:5060
+disable_tcp=yes</code></pre></div>
+                    <div class="gallery">
+                        <figure>
+                            <img src="img/07-kamailio-define.png" alt="Direktívy define v kamailio.cfg">
+                            <figcaption><b>Obr. 8</b> Direktívy <code>#!define</code> na začiatku súboru.</figcaption>
+                        </figure>
+                        <figure>
+                            <img src="img/08-kamailio-global-params.png" alt="Global Parameters v kamailio.cfg">
+                            <figcaption><b>Obr. 9</b> Upravené globálne parametre.</figcaption>
+                        </figure>
+                    </div>
+                </li>
+                <li>
+                    <strong>Nastavenie nástrojov kamctl / kamdbctl</strong>
+                    <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">/etc/kamailio/kamctlrc</span><button class="copy">Kopírovať</button></div><pre><code>SIP_DOMAIN=158.196.244.169
+DBENGINE=MYSQL
+DBHOST=localhost
+DBNAME=kamailio
+DBRWUSER="kamailio"
+DBRWPW="pepa"
+DBROUSER="kamailioro"
+DBROPW="pepa"
+DBROOTUSER="root"</code></pre></div>
+                    <figure>
+                        <img src="img/09-kamctlrc.png" alt="Súbor kamctlrc">
+                        <figcaption><b>Obr. 10</b> Súbor <code>kamctlrc</code> s nastavením SIP domény a databázy.</figcaption>
+                    </figure>
+                </li>
+            </ol>
+
+            <h3 id="databaza">3.7 Databáza, účty a spustenie</h3>
+            <div class="term"><div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">bash</span><button class="copy">Kopírovať</button></div><pre><code>systemctl start mariadb
+/usr/sbin/kamdbctl create            <span class="c"># na otázku o znakovej sade zadať: utf16</span>
+
+/usr/sbin/kamctl add 2000 pepa_2000  <span class="c"># SIP účty</span>
+/usr/sbin/kamctl add 2001 pepa_2001
+
+/usr/sbin/kamailio -c -f /etc/kamailio/kamailio.cfg   <span class="c"># kontrola konfigurácie</span>
+systemctl reset-failed kamailio
+systemctl start kamailio
+systemctl status kamailio --no-pager
+
+/usr/sbin/kamctl db show subscriber  <span class="c"># kontrola účtov</span></code></pre></div>
+
+            <figure>
+                <img src="img/10-kamailio-kontrola-konfiguracie.png" alt="Kontrola konfigurácie Kamailio">
+                <figcaption><b>Obr. 11</b> Kontrola konfigurácie: Kamailio počúva na UDP 5070, <em>config file ok</em>.</figcaption>
+            </figure>
+            <figure>
+                <img src="img/11-kamailio-status.png" alt="Stav služby Kamailio">
+                <figcaption><b>Obr. 12</b> Služba Kamailio je <em>active (running)</em>.</figcaption>
+            </figure>
+            <figure>
+                <img src="img/12-kamailio-ucty.png" alt="Tabuľka subscriber">
+                <figcaption><b>Obr. 13</b> Účty 2000 a 2001 v tabuľke <code>subscriber</code>. Stĺpce <code>ha1</code> obsahujú MD5 hash pre digest autentifikáciu.</figcaption>
+            </figure>
+
+            <h3 id="hovor-kamailio">3.8 Registrácia a hovor cez Kamailio</h3>
+            <p>Oba telefóny sa preregistrujú na Kamailio: proxy/registrar aj doména je <code>158.196.244.169:5070</code>. V PhonerLite sa lokálny port zmení na 5070 a ZRTP zostáva zapnuté. Stav <em>Registrovaný</em> potvrdzuje úspešnú autentifikáciu voči databáze.</p>
+            <figure>
+                <img src="img/13-registracia-cez-kamailio.png" alt="Registrácia cez Kamailio">
+                <figcaption><b>Obr. 14</b> PhonerLite zaregistrovaný ako <code>sip:2000@158.196.244.169:5070</code>, vľavo prichádzajúci hovor v Linphone.</figcaption>
+            </figure>
+            <div class="gallery-wrap">
+                <div class="gallery">
+                    <figure>
+                        <img src="img/14-phonerlite-port-5070.png" alt="PhonerLite – port 5070">
+                        <figcaption><b>Obr. 15</b> Lokálny port 5070.</figcaption>
+                    </figure>
+                    <figure>
+                        <img src="img/15-phonerlite-zrtp-5070.png" alt="PhonerLite – ZRTP a registrácia">
+                        <figcaption><b>Obr. 16</b> ZRTP zapnuté, stav <em>Registrovaný</em>.</figcaption>
+                    </figure>
+                </div>
+            </div>
+            <p>Hovor prebehne rovnako ako pri Asterisku: overenie SAS kódu a stav <em>Device trusted</em>. Kamailio preposiela len SIP správy a do RTP toku nevstupuje, preto ZRTP funguje bez akejkoľvek úpravy servera.</p>
+            <div class="gallery-wrap">
+                <div class="gallery">
+                    <figure>
+                        <img src="img/16-hovor-kamailio-sas.png" alt="Overenie SAS cez Kamailio">
+                        <figcaption><b>Obr. 17</b> Prebiehajúci hovor cez Kamailio, overenie SAS.</figcaption>
+                    </figure>
+                    <figure>
+                        <img src="img/17-hovor-kamailio-trusted.png" alt="Device trusted cez Kamailio">
+                        <figcaption><b>Obr. 18</b> Overené zariadenie, hovor so <code>sip:2000@158.196.244.169:5070</code>.</figcaption>
+                    </figure>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== 04 Vlastný názor ===== -->
+        <section id="nazor">
+            <h2><span class="num">04</span>Vlastný názor a prínos</h2>
+            <p>ZRTP považujeme za veľmi praktické riešenie: šifrovanie fungovalo medzi dvoma rôznymi aplikáciami, cez ústredňu aj cez proxy, a nebolo potrebné zriaďovať certifikáty. Bezpečnosť však stojí na dvoch veciach, ktoré ZRTP samo nevyrieši.</p>
+            <div class="opinion">
+                <div class="plus">
+                    <h4>Silné stránky</h4>
+                    <ul>
+                        <li>Kľúč nepozná ani ústredňa, ani proxy, takže ani prevádzkovateľ servera nemôže hovor odpočúvať.</li>
+                        <li>Žiadna PKI, stačí podpora v telefónoch.</li>
+                        <li>Linphone už ponúka postkvantovú variantu.</li>
+                    </ul>
+                </div>
+                <div class="minus">
+                    <h4>Slabé stránky</h4>
+                    <ul>
+                        <li>Ochrana pred MitM závisí od toho, či používateľ SAS kód naozaj porovná, a nie len klikne na <em>Skip</em>.</li>
+                        <li>Signalizácia ostala nešifrovaná (UDP), takže je vidieť, kto komu volá.</li>
+                        <li>V laboratóriu boli použité slabé heslá (<code>pepa</code>), v praxi neprijateľné.</li>
+                    </ul>
+                </div>
+            </div>
+            <p><strong>Prínos projektu:</strong> praktické porovnanie správania ZRTP pri ústredni (Asterisk, kde bolo nutné zapnúť <code>direct_media</code>) a pri čistej proxy (Kamailio, bez úprav), overenie kompatibility PhonerLite a Linphone a doplnenie návodu o vysvetlenie parametrov. Pre produkčné nasadenie odporúčame doplniť SIP cez TLS, silné heslá a ochranu proti útokom hrubou silou (napr. modul <code>pike</code> v Kamailio alebo fail2ban).</p>
+        </section>
+
+        <!-- ===== 05 Záver ===== -->
+        <section id="zaver">
+            <h2><span class="num">05</span>Záver a výsledky</h2>
+            <ul class="results">
+                <li>Asterisk 20.21.0 skompilovaný zo zdrojových kódov a spustený ako systémová služba.</li>
+                <li>Linky 2000 (PhonerLite) a 2001 (Linphone) zaregistrované cez PJSIP, vzájomné volanie funguje.</li>
+                <li>Hovor cez Asterisk šifrovaný ZRTP, overený porovnaním SAS kódu (<em>Device trusted</em>).</li>
+                <li>Kamailio 5.6 s autentifikáciou účtov voči databáze MariaDB beží na porte UDP 5070.</li>
+                <li>Hovor cez Kamailio šifrovaný ZRTP end-to-end bez akejkoľvek úpravy servera.</li>
+            </ul>
+            <p>V projekte sa podarilo prakticky nasadiť dve odlišné VoIP platformy a na oboch overiť koncové šifrovanie hovoru. Ústredňa Asterisk 20 bola skompilovaná zo zdrojových kódov s pribalenou knižnicou PJSIP. Linky 2000 a 2001 boli nakonfigurované s autentifikáciou menom a heslom a jednoduchý dialplan zabezpečil vzájomné volanie. V druhej fáze bola na tom istom serveri nasadená SIP proxy Kamailio na samostatnom porte 5070, s overovaním účtov voči databáze MariaDB a s ukladaním registrácií. Oba softvérové telefóny, PhonerLite aj Linphone, sa úspešne zaregistrovali na obe platformy.</p>
+            <p>Najdôležitejším zistením je, že pri ZRTP rozhoduje architektúra servera. Asterisk ako ústredňa (B2BUA) štandardne preposiela hlas cez seba a ZRTP nepodporuje. Šifrovaný hovor preto fungoval až po zapnutí <code>direct_media=yes</code>, keď sa médiá presmerovali priamo medzi telefóny. Kamailio ako čistá SIP proxy do mediálneho toku vôbec nevstupuje, takže ZRTP fungovalo bez akejkoľvek úpravy servera. V oboch prípadoch platí, že kľúč si dohodli iba koncové zariadenia a server ho nikdy nepoznal. Ani administrátor ústredne či proxy teda hovor nedokáže dešifrovať.</p>
+            <p>Úspešný test potvrdil aj vzájomnú kompatibilitu dvoch rôznych implementácií ZRTP. Linphone nastavený na Post-quantum ZRTP sa dohodol s PhonerLite a po porovnaní SAS kódu oba telefóny označili spojenie ako dôveryhodné. Práve krok s porovnaním SAS je pritom kritický: ak ho používateľ preskočí, ZRTP stále šifruje, ale už nechráni pred útokom typu Man-in-the-Middle.</p>
+            <p>Riešenie má aj obmedzenia, ktoré by bolo potrebné odstrániť pred reálnym nasadením. Signalizácia SIP ostala nešifrovaná (UDP), takže útočník v sieti vidí, kto komu a kedy volá, hoci obsah hovoru nepočuje. Laboratórne heslá boli slabé a server nemal ochranu proti útokom hrubou silou. Pre produkčné prostredie odporúčame prejsť na SIP cez TLS, používať silné náhodné heslá, v Kamailio zapnúť modul <code>pike</code> alebo nasadiť fail2ban a pri Asterisku zvážiť aj podporu SRTP s DTLS pre klientov, ktorí ZRTP nepodporujú. Projekt tak ukázal, že ZRTP je jednoduchý a účinný spôsob, ako zabezpečiť obsah hovoru, ale úplnú ochranu VoIP komunikácie dosiahneme iba v kombinácii so zabezpečenou signalizáciou.</p>
+        </section>
+
+        <!-- ===== 06 Zdroje ===== -->
+        <section id="zdroje">
+            <h2><span class="num">06</span>Zdroje</h2>
+            <ol class="refs">
+                <li>VŠB-TUO. <em>Exercise 5</em> [zadanie cvičenia]. LMS VŠB-TUO. Dostupné z: <a href="https://lms.vsb.cz/pluginfile.php/2773869/mod_resource/content/10/exercise_5_v2.pdf">lms.vsb.cz/…/exercise_5_v2.pdf</a></li>
+                <li>ROSENBERG, J. et al. <em>RFC 3261: SIP: Session Initiation Protocol</em>. IETF, 2002.</li>
+                <li>SCHULZRINNE, H. et al. <em>RFC 3550: RTP: A Transport Protocol for Real-Time Applications</em>. IETF, 2003.</li>
+                <li>BAUGHER, M. et al. <em>RFC 3711: The Secure Real-time Transport Protocol (SRTP)</em>. IETF, 2004.</li>
+                <li>McGREW, D.; RESCORLA, E. <em>RFC 5764: DTLS Extension to Establish Keys for SRTP</em>. IETF, 2010.</li>
+                <li>ZIMMERMANN, P.; JOHNSTON, A.; CALLAS, J. <em>RFC 6189: ZRTP: Media Path Key Agreement for Unicast Secure RTP</em>. IETF, 2011.</li>
+                <li>Sangoma. <em>Asterisk Documentation</em>. Dostupné z: <a href="https://docs.asterisk.org">docs.asterisk.org</a></li>
+                <li>Kamailio. <em>Kamailio SIP Server</em>. Dostupné z: <a href="https://www.kamailio.org">kamailio.org</a></li>
+                <li>Belledonne Communications. <em>Linphone</em>. Dostupné z: <a href="https://www.linphone.org">linphone.org</a></li>
+                <li><em>PhonerLite</em>. Dostupné z: <a href="https://phonerlite.de">phonerlite.de</a></li>
+            </ol>
+        </section>
+
+    </main>
+</div>
+
+<footer>MKZO · Secure VoIP: Asterisk, Kamailio &amp; ZRTP</footer>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-label="Zväčšený obrázok"><img alt=""></div>
+
+<script>
+// Kopírovanie kódu
+document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var code = btn.closest('.term').querySelector('code').innerText;
+        var done = function () {
+            btn.textContent = 'Skopírované';
+            setTimeout(function () { btn.textContent = 'Kopírovať'; }, 1500);
+        };
+        try {
+            navigator.clipboard.writeText(code).then(done, function () {});
+        } catch (e) {}
+    });
+});
+
+// Zväčšenie obrázkov
+var lb = document.getElementById('lightbox');
+var lbImg = lb.querySelector('img');
+document.querySelectorAll('figure img').forEach(function (img) {
+    img.addEventListener('click', function () {
+        lbImg.src = img.src;
+        lbImg.alt = img.alt;
+        lb.classList.add('open');
+    });
+});
+lb.addEventListener('click', function () { lb.classList.remove('open'); });
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') lb.classList.remove('open');
+});
+
+// Zvýraznenie aktuálnej sekcie v obsahu
+var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+var targets = links.map(function (a) { return document.querySelector(a.getAttribute('href')); });
+function spy() {
+    var current = 0;
+    targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top < 140) current = i;
+    });
+    links.forEach(function (a, i) { a.classList.toggle('active', i === current); });
+}
+window.addEventListener('scroll', spy, { passive: true });
+spy();
+</script>
+
+</body>
+</html>
